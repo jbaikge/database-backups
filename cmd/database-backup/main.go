@@ -8,8 +8,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jbaikge/database-backups/pkg/api"
 	"github.com/jbaikge/database-backups/pkg/repository"
@@ -68,6 +70,22 @@ func run(args []string) error {
 		return err
 	}
 
+	for _, server := range servers {
+		log.Printf("Dumping databases in %s", server.Name)
+		databases, err := databaseService.ListServer(server.Id)
+		if err != nil {
+			return err
+		}
+		for _, database := range databases {
+			if !database.Backup {
+				continue
+			}
+			if err := dumpDatabase(server, database, dumpDir); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -85,7 +103,7 @@ func setupDatabase(path string) (*sql.DB, error) {
 }
 
 func buildServerCmd(server api.Server, cmd string, args ...string) ([]string, error) {
-	parts := make([]string, 0, 16)
+	parts := make([]string, 0, 32)
 	if server.ProxyHost != "" {
 		userHost := fmt.Sprintf("%s@%s", server.ProxyUsername, server.ProxyHost)
 		parts = append(parts, "ssh", "-i", server.ProxyIdentity, userHost)
@@ -124,9 +142,55 @@ func databaseList(server api.Server) ([]string, error) {
 	return strings.Fields(string(output)), nil
 }
 
-// func dumpDatabase(server api.Server, database api.Database) error {
-// 	return nil
-// }
+func dumpDatabase(server api.Server, database api.Database, dir string) error {
+	filename := fmt.Sprintf(
+		"%s_%s_%s.sql",
+		server.Name,
+		database.Name,
+		time.Now().Format("2006-01-02"),
+	)
+	path := filepath.Join(dir, filename)
+
+	log.Printf("Dumping %s to %s", database.Name, filename)
+
+	args := make([]string, 0, 32)
+
+	if database.ExcludeTables != "" {
+		for _, table := range strings.Fields(database.ExcludeTables) {
+			args = append(args, "--ignore-table", database.Name+"."+table)
+		}
+	}
+
+	args = append(args, database.Name)
+
+	if database.OnlyTables != "" {
+		args = append(args, strings.Fields(database.OnlyTables)...)
+	}
+
+	parts, err := buildServerCmd(server, "mysqldump", args...)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// In case this runs twice in the same day, empty the file before writing
+	if err := file.Truncate(0); err != nil {
+		return err
+	}
+
+	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd.Stdout = file
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func updateDatabaseList(server api.Server, databaseService api.DatabaseService) error {
 	log.Printf("Checking %s for new databases", server.Name)
