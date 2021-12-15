@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/jbaikge/database-backups/pkg/api"
 	"github.com/jbaikge/database-backups/pkg/repository"
 	_ "github.com/mattn/go-sqlite3"
@@ -29,10 +32,12 @@ func run(args []string) error {
 	databasePath := "/tmp/database-backups.sqlite3"
 	dumpDir := "/tmp/dumps"
 	onlyUpdateList := false
+	bucket := ""
 
 	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
 	flags.StringVar(&databasePath, "db", databasePath, "Path to configuration and logging database")
 	flags.StringVar(&dumpDir, "dir", dumpDir, "Directory to store dumps")
+	flags.StringVar(&bucket, "bucket", bucket, "AWS Bucket to store dumps")
 	flags.BoolVar(&onlyUpdateList, "update-list", onlyUpdateList, "Only update database lists for servers")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -80,7 +85,11 @@ func run(args []string) error {
 			if !database.Backup {
 				continue
 			}
-			if err := dumpDatabase(server, database, dumpDir); err != nil {
+			filename := dumpFilename(server, database, dumpDir)
+			if err := dumpDatabase(server, database, filename); err != nil {
+				return err
+			}
+			if err := sendToS3(bucket, filename); err != nil {
 				return err
 			}
 		}
@@ -142,18 +151,11 @@ func databaseList(server api.Server) ([]string, error) {
 	return strings.Fields(string(output)), nil
 }
 
-func dumpDatabase(server api.Server, database api.Database, dir string) error {
-	filename := fmt.Sprintf(
-		"%s_%s_%s.sql",
-		server.Name,
-		database.Name,
-		time.Now().Format("2006-01-02"),
-	)
-	path := filepath.Join(dir, filename)
-
-	log.Printf("Dumping %s to %s", database.Name, filename)
+func dumpDatabase(server api.Server, database api.Database, path string) error {
+	log.Printf("Dumping %s to %s", database.Name, path)
 
 	args := make([]string, 0, 32)
+	args = append(args, "--single-transaction")
 
 	if database.ExcludeTables != "" {
 		for _, table := range strings.Fields(database.ExcludeTables) {
@@ -189,6 +191,40 @@ func dumpDatabase(server api.Server, database api.Database, dir string) error {
 		return err
 	}
 
+	return nil
+}
+
+func dumpFilename(server api.Server, database api.Database, dir string) string {
+	filename := fmt.Sprintf(
+		"%s_%s_%s.sql",
+		server.Name,
+		database.Name,
+		time.Now().Format("2006-01-02"),
+	)
+	return filepath.Join(dir, filename)
+}
+
+func sendToS3(bucket string, path string) error {
+	sess, err := session.NewSession()
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	input := &s3manager.UploadInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(filepath.Base(path)),
+		Body:   f,
+	}
+
+	uploader := s3manager.NewUploader(sess)
+	if _, err := uploader.Upload(input); err != nil {
+		return err
+	}
 	return nil
 }
 
