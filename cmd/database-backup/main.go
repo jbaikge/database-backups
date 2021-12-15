@@ -84,7 +84,7 @@ func setupDatabase(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-func buildServerCmd(server api.Server, cmd string) ([]string, error) {
+func buildServerCmd(server api.Server, cmd string, args ...string) ([]string, error) {
 	parts := make([]string, 0, 16)
 	if server.ProxyHost != "" {
 		userHost := fmt.Sprintf("%s@%s", server.ProxyUsername, server.ProxyHost)
@@ -98,21 +98,22 @@ func buildServerCmd(server api.Server, cmd string) ([]string, error) {
 		}
 		parts = append(parts, fmt.Sprintf("-p%s", password))
 	}
+	parts = append(parts, args...)
 	return parts, nil
 }
 
 func databaseList(server api.Server) ([]string, error) {
-	parts, err := buildServerCmd(server, "mysql")
-	if err != nil {
-		return nil, err
-	}
-	parts = append(
-		parts,
+	parts, err := buildServerCmd(
+		server,
+		"mysql",
 		"--skip-column-names",
 		"--batch",
 		"--execute",
-		"SHOW DATABASES WHERE `Database` NOT IN('information_schema', 'mysql', 'performance_schema')",
+		"SHOW DATABASES WHERE `Database` NOT IN('mysql', 'information_schema', 'performance_schema')",
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	cmd := exec.Command(parts[0], parts[1:]...)
 	output, err := cmd.Output()
@@ -123,9 +124,9 @@ func databaseList(server api.Server) ([]string, error) {
 	return strings.Fields(string(output)), nil
 }
 
-func dumpDatabase(server api.Server, database api.Database) error {
-	return nil
-}
+// func dumpDatabase(server api.Server, database api.Database) error {
+// 	return nil
+// }
 
 func updateDatabaseList(server api.Server, databaseService api.DatabaseService) error {
 	log.Printf("Checking %s for new databases", server.Name)
