@@ -11,9 +11,9 @@ import (
 	"sort"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/jbaikge/database-backups/pkg/api"
 	"github.com/jbaikge/database-backups/pkg/repository"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
@@ -49,8 +49,15 @@ func run(args []string) error {
 	serverService := api.NewServerService(storage)
 	databaseService := api.NewDatabaseService(storage)
 
-	if err := updateDatabaseList(serverService, databaseService); err != nil {
+	servers, err := serverService.List()
+	if err != nil {
 		return err
+	}
+
+	for _, server := range servers {
+		if err := updateDatabaseList(server, databaseService); err != nil {
+			return err
+		}
 	}
 
 	if onlyUpdateList {
@@ -116,69 +123,62 @@ func databaseList(server api.Server) ([]string, error) {
 	return strings.Fields(string(output)), nil
 }
 
-// func dumpDatabase(server api.Server, database api.Database) error {
-// 	return nil
-// }
+func dumpDatabase(server api.Server, database api.Database) error {
+	return nil
+}
 
-func updateDatabaseList(serverService api.ServerService, databaseService api.DatabaseService) error {
-	servers, err := serverService.List()
+func updateDatabaseList(server api.Server, databaseService api.DatabaseService) error {
+	log.Printf("Checking %s for new databases", server.Name)
+	existing, err := databaseService.ListServer(server.Id)
 	if err != nil {
 		return err
 	}
 
-	for _, server := range servers {
-		log.Printf("Checking %s for new databases", server.Name)
-		existing, err := databaseService.ListServer(server.Id)
-		if err != nil {
+	existingNames := make([]string, len(existing))
+	for i, db := range existing {
+		existingNames[i] = db.Name
+	}
+
+	// Database list is already sorted by name, but verify for the sake of
+	// the following steps
+	if !sort.StringsAreSorted(existingNames) {
+		return errors.New("database names are not sorted")
+	}
+
+	names, err := databaseList(server)
+	if err != nil {
+		return err
+	}
+
+	// Add in new databases
+	for _, name := range names {
+		if x := sort.SearchStrings(existingNames, name); x < len(existingNames) && existingNames[x] == name {
+			continue
+		}
+
+		log.Printf("New database on %s: %s", server.Name, name)
+		newDb := api.NewDatabaseRequest{
+			Name:     name,
+			ServerId: server.Id,
+		}
+		if err := databaseService.New(newDb); err != nil {
 			return err
 		}
+	}
 
-		existingNames := make([]string, len(existing))
-		for i, db := range existing {
-			existingNames[i] = db.Name
+	// Mark removed databases
+	for _, db := range existing {
+		if x := sort.SearchStrings(names, db.Name); x < len(names) && names[x] == db.Name {
+			continue
 		}
 
-		// Database list is already sorted by name, but verify for the sake of
-		// the following steps
-		if !sort.StringsAreSorted(existingNames) {
-			return errors.New("database names are not sorted")
+		if !db.Backup && db.Removed != nil {
+			continue
 		}
 
-		names, err := databaseList(server)
-		if err != nil {
+		log.Printf("Removing database from %s: %s", server.Name, db.Name)
+		if err := databaseService.Delete(db.Id); err != nil {
 			return err
-		}
-
-		// Add in new databases
-		for _, name := range names {
-			if x := sort.SearchStrings(existingNames, name); x < len(existingNames) && existingNames[x] == name {
-				continue
-			}
-
-			log.Printf("New database on %s: %s", server.Name, name)
-			newDb := api.NewDatabaseRequest{
-				Name:     name,
-				ServerId: server.Id,
-			}
-			if err := databaseService.New(newDb); err != nil {
-				return err
-			}
-		}
-
-		// Mark removed databases
-		for _, db := range existing {
-			if x := sort.SearchStrings(names, db.Name); x < len(names) && names[x] == db.Name {
-				continue
-			}
-
-			if !db.Backup && db.Removed != nil {
-				continue
-			}
-
-			log.Printf("Removing database from %s: %s", server.Name, db.Name)
-			if err := databaseService.Delete(db.Id); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
