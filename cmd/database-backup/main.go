@@ -89,7 +89,7 @@ func run(args []string) error {
 			if err := dumpDatabase(server, database, filename); err != nil {
 				return err
 			}
-			if err := sendToS3(bucket, filename); err != nil {
+			if err := sendToS3(bucket, filename, server, database); err != nil {
 				return err
 			}
 			if err := os.Remove(filename); err != nil {
@@ -207,7 +207,7 @@ func dumpFilename(server api.Server, database api.Database, dir string) string {
 	return filepath.Join(dir, filename)
 }
 
-func sendToS3(bucket string, path string) error {
+func sendToS3(bucket string, path string, server api.Server, database api.Database) error {
 	sess, err := session.NewSession()
 	if err != nil {
 		return err
@@ -218,9 +218,11 @@ func sendToS3(bucket string, path string) error {
 		return err
 	}
 
+	key := filepath.Join(server.Name, database.Name, filepath.Base(path))
+
 	input := &s3manager.UploadInput{
 		Bucket: aws.String(bucket),
-		Key:    aws.String(filepath.Base(path)),
+		Key:    aws.String(key),
 		Body:   f,
 	}
 
