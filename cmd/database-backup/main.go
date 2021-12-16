@@ -92,6 +92,9 @@ func run(args []string) error {
 			if err := sendToS3(bucket, filename); err != nil {
 				return err
 			}
+			if err := os.Remove(filename); err != nil {
+				return err
+			}
 		}
 	}
 
