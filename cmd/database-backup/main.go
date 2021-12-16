@@ -207,6 +207,10 @@ func dumpFilename(server api.Server, database api.Database, dir string) string {
 	return filepath.Join(dir, filename)
 }
 
+// Required environment variables:
+// AWS_ACCESS_KEY_ID
+// AWS_SECRET_ACCESS_KEY
+// AWS_REGION
 func sendToS3(bucket string, path string, server api.Server, database api.Database) error {
 	sess, err := session.NewSession()
 	if err != nil {
@@ -217,6 +221,7 @@ func sendToS3(bucket string, path string, server api.Server, database api.Databa
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	key := filepath.Join(server.Name, database.Name, filepath.Base(path))
 
