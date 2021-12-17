@@ -1,0 +1,14 @@
+[Unit]
+Description=Database Backup API
+Documentation=https://github.com/jbaikge/database-backups
+Requires=network.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/database-backups/database-backups.conf
+ExecStart=/opt/bin/database-backup-api \
+    -addr ${API_ADDRESS} \
+    -db ${CONFIG_DATABASE}
+
+[Install]
+WantedBy=default.target
