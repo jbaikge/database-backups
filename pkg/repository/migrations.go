@@ -18,10 +18,10 @@ var migrations = []migration{
 				host           TEXT NOT NULL,
 				port           TEXT NOT NULL,
 				username       TEXT NOT NULL,
-				password       TEXT NOT NULL,
-				proxy_host     TEXT,
-				proxy_username TEXT,
-				proxy_identity TEXT
+				password       TEXT NOT NULL DEFAULT '',
+				proxy_host     TEXT NOT NULL DEFAULT '',
+				proxy_username TEXT NOT NULL DEFAULT '',
+				proxy_identity TEXT NOT NULL DEFAULT ''
 			)
 		`,
 		check: checkTableExists("servers"),
