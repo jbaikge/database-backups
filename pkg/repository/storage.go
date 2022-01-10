@@ -387,10 +387,11 @@ func (s *storage) UpdateServer(id int, server api.NewServerRequest) error {
 			host           = $2,
 			port           = $3,
 			username       = $4,
-			proxy_host     = $5,
-			proxy_username = $6,
-			proxy_identity = $7
-		WHERE server_id = $8
+			password       = $5,
+			proxy_host     = $6,
+			proxy_username = $7,
+			proxy_identity = $8
+		WHERE server_id = $9
 	`
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -403,28 +404,12 @@ func (s *storage) UpdateServer(id int, server api.NewServerRequest) error {
 		server.Host,
 		server.Port,
 		server.Username,
+		server.Password,
 		server.ProxyHost,
 		server.ProxyUsername,
 		server.ProxyIdentity,
 		id,
 	)
-	if err != nil {
-		return err
-	}
-
-	// Blank password means keep current
-	if server.Password == "" {
-		return nil
-	}
-
-	queryPassword := `UPDATE servers SET password = $1 WHERE server_id = $2`
-	stmtPassword, err := s.db.Prepare(queryPassword)
-	if err != nil {
-		return err
-	}
-	defer stmtPassword.Close()
-
-	_, err = stmtPassword.Exec(server.Password, id)
 	if err != nil {
 		return err
 	}
