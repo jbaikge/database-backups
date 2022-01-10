@@ -4,15 +4,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
+	"errors"
 	"os"
 )
 
 func (s Server) DecryptPassword() (decrypted string, err error) {
-	iv, err := base64.StdEncoding.DecodeString(os.Getenv("DATABASE_BACKUP_IV"))
-	if err != nil {
-		return
-	}
-
 	key, err := base64.StdEncoding.DecodeString(os.Getenv("DATABASE_BACKUP_KEY"))
 	if err != nil {
 		return
@@ -23,13 +19,19 @@ func (s Server) DecryptPassword() (decrypted string, err error) {
 		return
 	}
 
+	if len(data) < 16 {
+		err = errors.New("data must be at least 16 bytes")
+		return
+	}
+	iv, msg := data[0:16], data[16:]
+
 	cipherBlock, err := aes.NewCipher(key)
 	if err != nil {
 		return
 	}
 
-	cipher.NewCBCDecrypter(cipherBlock, iv).CryptBlocks(data, data)
-	decrypted = string(data)
+	cipher.NewCBCDecrypter(cipherBlock, iv).CryptBlocks(msg, msg)
+	decrypted = string(msg)
 
 	return
 }
