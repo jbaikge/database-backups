@@ -2,6 +2,8 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
+	"sort"
 	"time"
 
 	"github.com/jbaikge/database-backups/pkg/api"
@@ -418,11 +420,54 @@ func (s *storage) UpdateServer(id int, server api.NewServerRequest) error {
 	return nil
 }
 
-func (s *storage) UpdateServerDatabases(id int, databases []string) error {
-	_, err := s.ListDatabases(id)
+func (s *storage) UpdateServerDatabases(id int, names []string) error {
+	existing, err := s.ListDatabases(id)
 	if err != nil {
 		return err
 	}
 
+	existingNames := make([]string, len(existing))
+	for i, db := range existing {
+		existingNames[i] = db.Name
+	}
+
+	// Database list is already sorted by name, but verify for the sake of the
+	// following steps
+	if !sort.StringsAreSorted(existingNames) {
+		return errors.New("database names are not sorted")
+	}
+
+	// Add new databases
+	for _, name := range names {
+		// Skip names that already exist
+		if x := sort.SearchStrings(existingNames, name); x < len(existingNames) && existingNames[x] == name {
+			continue
+		}
+
+		newDb := api.NewDatabaseRequest{
+			Name:     name,
+			ServerId: id,
+		}
+		if err := s.CreateDatabase(newDb); err != nil {
+			return err
+		}
+	}
+
+	// Mark removed databases
+	for _, db := range existing {
+		// Skip existing databases that are incoming
+		if x := sort.SearchStrings(names, db.Name); x < len(names) && names[x] == db.Name {
+			continue
+		}
+
+		// Skip databases already marked for removal
+		if !db.Backup && db.Removed != nil {
+			continue
+		}
+
+		if err := s.DeleteDatabase(db.Id); err != nil {
+			return err
+		}
+	}
 	return nil
 }
