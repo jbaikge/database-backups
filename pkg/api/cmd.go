@@ -40,7 +40,7 @@ func (s Server) DatabaseListCmd() ([]string, error) {
 		"--batch",
 		"--execute",
 		fmt.Sprintf(
-			"SHOW DATABASES WHERE Database NOT IN(%s)",
+			"SHOW DATABASES WHERE `Database` NOT IN(%s)",
 			strings.Join(ignoreTables, ", "),
 		),
 	}
