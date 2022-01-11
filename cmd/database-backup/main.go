@@ -77,7 +77,7 @@ func run(args []string) error {
 
 	for _, server := range servers {
 		log.Printf("Dumping databases in %s", server.Name)
-		databases, err := databaseService.ListServer(server.Id)
+		databases, err := databaseService.List(server.Id)
 		if err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ func sendToS3(bucket string, path string, server api.Server, database api.Databa
 
 func updateDatabaseList(server api.Server, databaseService api.DatabaseService) error {
 	log.Printf("Checking %s for new databases", server.Name)
-	existing, err := databaseService.ListServer(server.Id)
+	existing, err := databaseService.List(server.Id)
 	if err != nil {
 		return err
 	}

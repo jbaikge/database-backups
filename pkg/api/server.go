@@ -9,6 +9,7 @@ type ServerService interface {
 	New(NewServerRequest) error
 	Tree() ([]Tree, error)
 	Update(int, NewServerRequest) error
+	UpdateDatabases(int) error
 }
 
 type ServerRepository interface {
@@ -18,6 +19,7 @@ type ServerRepository interface {
 	ListServers() ([]Server, error)
 	ServerTree() ([]Tree, error)
 	UpdateServer(int, NewServerRequest) error
+	UpdateServerDatabases(int, []string) error
 }
 
 type serverService struct {
@@ -64,6 +66,20 @@ func (s *serverService) Update(id int, server NewServerRequest) error {
 	}
 
 	return s.storage.UpdateServer(id, server)
+}
+
+func (s *serverService) UpdateDatabases(id int) error {
+	server, err := s.storage.GetServer(id)
+	if err != nil {
+		return err
+	}
+
+	databases, err := server.DatabaseList()
+	if err != nil {
+		return err
+	}
+
+	return s.storage.UpdateServerDatabases(id, databases)
 }
 
 func (s *serverService) newServerRequestValidation(server NewServerRequest) error {

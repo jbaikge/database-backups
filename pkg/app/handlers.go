@@ -91,17 +91,6 @@ func (s *Server) GetServer() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) ListDatabases() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		databases, err := s.databaseService.List()
-		if err != nil {
-			c.JSON(http.StatusExpectationFailed, gin.H{"success": false, "error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, databases)
-	}
-}
-
 func (s *Server) ListServers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		servers, err := s.serverService.List()

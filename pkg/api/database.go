@@ -3,8 +3,7 @@ package api
 type DatabaseService interface {
 	Delete(int) error
 	Get(int) (*Database, error)
-	List() ([]Database, error)
-	ListServer(int) ([]Database, error)
+	List(int) ([]Database, error)
 	New(NewDatabaseRequest) error
 	Update(int, UpdateDatabaseRequest) error
 }
@@ -13,7 +12,7 @@ type DatabaseRepository interface {
 	CreateDatabase(NewDatabaseRequest) error
 	DeleteDatabase(int) error
 	GetDatabase(int) (*Database, error)
-	ListDatabases() ([]Database, error)
+	ListDatabases(int) ([]Database, error)
 	UpdateDatabase(int, UpdateDatabaseRequest) error
 }
 
@@ -35,24 +34,8 @@ func (s *databaseService) Get(id int) (*Database, error) {
 	return s.storage.GetDatabase(id)
 }
 
-func (s *databaseService) List() ([]Database, error) {
-	return s.storage.ListDatabases()
-}
-
-func (s *databaseService) ListServer(serverId int) ([]Database, error) {
-	all, err := s.storage.ListDatabases()
-	if err != nil {
-		return nil, err
-	}
-
-	dbs := make([]Database, 0, len(all))
-	for _, db := range all {
-		if db.ServerId == serverId {
-			dbs = append(dbs, db)
-		}
-	}
-
-	return dbs, nil
+func (s *databaseService) List(serverId int) ([]Database, error) {
+	return s.storage.ListDatabases(serverId)
 }
 
 func (s *databaseService) New(database NewDatabaseRequest) error {

@@ -17,7 +17,6 @@ func (s *Server) Routes() *gin.Engine {
 		v1.GET("/tree", s.Tree())
 		databases := v1.Group("/databases")
 		{
-			databases.GET("", s.ListDatabases())
 			databases.GET("/:id", s.GetDatabase())
 			databases.PUT("/:id", s.UpdateDatabase())
 			databases.DELETE("/:id", s.DeleteDatabase())

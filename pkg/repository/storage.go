@@ -14,12 +14,13 @@ type Storage interface {
 	DeleteServer(int) error
 	GetDatabase(int) (*api.Database, error)
 	GetServer(int) (*api.Server, error)
-	ListDatabases() ([]api.Database, error)
+	ListDatabases(int) ([]api.Database, error)
 	ListServers() ([]api.Server, error)
 	RunMigrations() error
 	ServerTree() ([]api.Tree, error)
 	UpdateDatabase(int, api.UpdateDatabaseRequest) error
 	UpdateServer(int, api.NewServerRequest) error
+	UpdateServerDatabases(int, []string) error
 }
 
 type storage struct {
@@ -223,7 +224,7 @@ func (s *storage) GetServer(id int) (*api.Server, error) {
 	return server, nil
 }
 
-func (s *storage) ListDatabases() ([]api.Database, error) {
+func (s *storage) ListDatabases(serverId int) ([]api.Database, error) {
 	query := `
 		SELECT
 			database_id,
@@ -235,9 +236,16 @@ func (s *storage) ListDatabases() ([]api.Database, error) {
 			added,
 			removed
 		FROM databases
+		WHERE server_id = $1
 		ORDER BY name ASC
 	`
-	rows, err := s.db.Query(query)
+	stmt, err := s.db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(serverId)
 	if err != nil {
 		return nil, err
 	}
@@ -330,19 +338,12 @@ func (s *storage) ServerTree() ([]api.Tree, error) {
 		return nil, err
 	}
 
-	databases, err := s.ListDatabases()
-	if err != nil {
-		return nil, err
-	}
-
 	trees := make([]api.Tree, len(servers))
 	for i, server := range servers {
 		trees[i].Server = server
-		trees[i].Databases = make([]api.Database, 0, len(databases))
-		for _, db := range databases {
-			if db.ServerId == server.Id {
-				trees[i].Databases = append(trees[i].Databases, db)
-			}
+		trees[i].Databases, err = s.ListDatabases(server.Id)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -410,6 +411,15 @@ func (s *storage) UpdateServer(id int, server api.NewServerRequest) error {
 		server.ProxyIdentity,
 		id,
 	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *storage) UpdateServerDatabases(id int, databases []string) error {
+	_, err := s.ListDatabases(id)
 	if err != nil {
 		return err
 	}
