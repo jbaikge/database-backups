@@ -1,19 +1,23 @@
 package api
 
-import "errors"
+import (
+	"errors"
+	"os/exec"
+	"strings"
+)
 
 type ServerService interface {
 	Delete(int) error
 	Get(int) (*Server, error)
 	List() ([]Server, error)
-	New(NewServerRequest) error
+	New(NewServerRequest) (*Server, error)
 	Tree() ([]Tree, error)
 	Update(int, NewServerRequest) error
 	UpdateDatabases(int) error
 }
 
 type ServerRepository interface {
-	CreateServer(NewServerRequest) error
+	CreateServer(NewServerRequest) (int, error)
 	DeleteServer(int) error
 	GetServer(int) (*Server, error)
 	ListServers() ([]Server, error)
@@ -44,12 +48,17 @@ func (s *serverService) List() ([]Server, error) {
 	return s.storage.ListServers()
 }
 
-func (s *serverService) New(server NewServerRequest) error {
+func (s *serverService) New(server NewServerRequest) (*Server, error) {
 	if err := s.newServerRequestValidation(server); err != nil {
-		return err
+		return nil, err
 	}
 
-	return s.storage.CreateServer(server)
+	id, err := s.storage.CreateServer(server)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.Get(id)
 }
 
 func (s *serverService) Tree() ([]Tree, error) {
@@ -74,11 +83,18 @@ func (s *serverService) UpdateDatabases(id int) error {
 		return err
 	}
 
-	databases, err := server.DatabaseList()
+	args, err := server.DatabaseListCmd()
 	if err != nil {
 		return err
 	}
 
+	cmd := exec.Command(args[0], args[1:]...)
+	output, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+
+	databases := strings.Fields(string(output))
 	return s.storage.UpdateServerDatabases(id, databases)
 }
 

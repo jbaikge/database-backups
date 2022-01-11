@@ -11,7 +11,7 @@ import (
 
 type Storage interface {
 	CreateDatabase(api.NewDatabaseRequest) error
-	CreateServer(api.NewServerRequest) error
+	CreateServer(api.NewServerRequest) (int, error)
 	DeleteDatabase(int) error
 	DeleteServer(int) error
 	GetDatabase(int) (*api.Database, error)
@@ -61,7 +61,7 @@ func (s *storage) CreateDatabase(db api.NewDatabaseRequest) error {
 	return nil
 }
 
-func (s *storage) CreateServer(server api.NewServerRequest) error {
+func (s *storage) CreateServer(server api.NewServerRequest) (id int, err error) {
 	query := `
 		INSERT INTO servers (
 			name,
@@ -76,10 +76,10 @@ func (s *storage) CreateServer(server api.NewServerRequest) error {
 	`
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return err
+		return
 	}
 
-	_, err = stmt.Exec(
+	result, err := stmt.Exec(
 		server.Name,
 		server.Host,
 		server.Port,
@@ -90,10 +90,16 @@ func (s *storage) CreateServer(server api.NewServerRequest) error {
 		server.ProxyIdentity,
 	)
 	if err != nil {
-		return err
+		return
 	}
 
-	return nil
+	id64, err := result.LastInsertId()
+	if err != nil {
+		return
+	}
+
+	id = int(id64)
+	return
 }
 
 func (s *storage) DeleteDatabase(id int) error {

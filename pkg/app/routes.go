@@ -25,9 +25,12 @@ func (s *Server) Routes() *gin.Engine {
 		{
 			servers.GET("", s.ListServers())
 			servers.POST("", s.CreateServer())
+
 			servers.GET("/:id", s.GetServer())
 			servers.PUT("/:id", s.UpdateServer())
 			servers.DELETE("/:id", s.DeleteServer())
+
+			servers.POST("/:id/dbs", s.UpdateServerDatabases())
 		}
 	}
 
