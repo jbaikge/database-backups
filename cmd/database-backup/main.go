@@ -2,13 +2,13 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -40,6 +40,23 @@ func run(args []string) error {
 		return err
 	}
 
+	// Ensure bucket is set as I keep forgetting to set this flag
+	if bucket == "" {
+		return errors.New("bucket name is empty")
+	}
+
+	// Check for required environment variables
+	envvars := []string{
+		"AWS_ACCESS_KEY_ID",
+		"AWS_SECRET_ACCESS_KEY",
+		"AWS_REGION",
+	}
+	for _, envvar := range envvars {
+		if os.Getenv(envvar) == "" {
+			return errors.New("environment variable, " + envvar + " is required")
+		}
+	}
+
 	db, err := setupDatabase(databasePath)
 	if err != nil {
 		return err
@@ -59,6 +76,7 @@ func run(args []string) error {
 	}
 
 	for _, server := range servers {
+		log.Printf("Updating database list for %s", server.Name)
 		if err := serverService.UpdateDatabases(server.Id); err != nil {
 			return err
 		}
@@ -83,13 +101,20 @@ func run(args []string) error {
 			if !database.Backup {
 				continue
 			}
-			filename := dumpFilename(server, database, dumpDir)
+
+			filename := filepath.Join(dumpDir, server.Filename(database))
+			log.Printf("Dumping %s to %s", database.Name, filename)
 			if err := dumpDatabase(server, database, filename); err != nil {
 				return err
 			}
-			if err := sendToS3(bucket, filename, server, database); err != nil {
+
+			key := server.S3Key(database)
+			log.Printf("Sending to S3 s3://%s/%s", bucket, key)
+			if err := sendToS3(bucket, filename, key); err != nil {
 				return err
 			}
+
+			log.Printf("Removing temporary file")
 			if err := os.Remove(filename); err != nil {
 				return err
 			}
@@ -113,8 +138,6 @@ func setupDatabase(path string) (*sql.DB, error) {
 }
 
 func dumpDatabase(server api.Server, database api.Database, path string) error {
-	log.Printf("Dumping %s to %s", database.Name, path)
-
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
@@ -140,33 +163,21 @@ func dumpDatabase(server api.Server, database api.Database, path string) error {
 	return nil
 }
 
-func dumpFilename(server api.Server, database api.Database, dir string) string {
-	filename := fmt.Sprintf(
-		"%s_%s_%s.sql",
-		server.Name,
-		database.Name,
-		time.Now().Format("2006-01-02"),
-	)
-	return filepath.Join(dir, filename)
-}
-
 // Required environment variables:
 // AWS_ACCESS_KEY_ID
 // AWS_SECRET_ACCESS_KEY
 // AWS_REGION
-func sendToS3(bucket string, path string, server api.Server, database api.Database) error {
+func sendToS3(bucket string, filename string, key string) error {
 	sess, err := session.NewSession()
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Open(path)
+	f, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
-	key := filepath.Join(server.Name, database.Name, filepath.Base(path))
 
 	input := &s3manager.UploadInput{
 		Bucket: aws.String(bucket),
