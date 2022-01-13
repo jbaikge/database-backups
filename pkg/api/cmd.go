@@ -49,13 +49,13 @@ func (s Server) DatabaseListCmd() ([]string, error) {
 
 func (s Server) addAuth(cmd []string) ([]string, error) {
 	parts := make([]string, 0, len(cmd)+8) // 8 is arbitrary, could be 5
-	parts = append(parts, cmd[0], "-h", s.Host, "-u", s.Username)
+	parts = append(parts, cmd[0], "--host", s.Host, "--port", fmt.Sprint(s.Port), "--user", s.Username)
 	if s.Password != "" {
 		password, err := s.DecryptPassword()
 		if err != nil {
 			return nil, err
 		}
-		parts = append(parts, fmt.Sprintf("-p%s", password))
+		parts = append(parts, fmt.Sprintf("--password=%s", password))
 	}
 	parts = append(parts, cmd[1:]...)
 	return parts, nil
