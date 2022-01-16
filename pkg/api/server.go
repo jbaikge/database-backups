@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -89,6 +90,7 @@ func (s *serverService) UpdateDatabases(id int) error {
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
 	if err != nil {
 		return err
