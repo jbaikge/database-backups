@@ -26,9 +26,11 @@ func (s Server) DatabaseDumpCmd(d Database) ([]string, error) {
 
 func (s Server) DatabaseListCmd() ([]string, error) {
 	ignoreTables := []string{
+		"innodb",
 		"mysql",
 		"information_schema",
 		"performance_schema",
+		"tmp",
 	}
 	for i := range ignoreTables {
 		ignoreTables[i] = "'" + ignoreTables[i] + "'"
