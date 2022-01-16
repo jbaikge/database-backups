@@ -4,8 +4,8 @@ Documentation=https://github.com/jbaikge/database-backups
 
 [Service]
 Type=oneshot
-EnvironmentFile=/etc/database-backups/database-backups.conf
-ExecStart=/opt/bin/database-backup \
+EnvironmentFile=/etc/database-backups.conf
+ExecStart=/usr/local/bin/database-backup \
     -db ${CONFIG_DATABASE} \
     -dir ${BACKUP_DIR} \
     -bucket ${AWS_BUCKET}

@@ -5,8 +5,8 @@ Requires=network.target
 After=network-online.target
 
 [Service]
-EnvironmentFile=/etc/database-backups/database-backups.conf
-ExecStart=/opt/bin/database-backup-api \
+EnvironmentFile=/etc/database-backups.conf
+ExecStart=/usr/local/bin/database-backup-api \
     -addr ${API_ADDRESS} \
     -db ${CONFIG_DATABASE}
 
