@@ -1,41 +1,37 @@
 package api
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
-	"errors"
+	"encoding/hex"
 	"fmt"
 	"os"
+
+	"golang.org/x/crypto/nacl/secretbox"
 )
 
 func (s Server) DecryptPassword() (decrypted string, err error) {
-	key, err := base64.StdEncoding.DecodeString(os.Getenv("DATABASE_BACKUP_KEY"))
+	var key [32]byte
+	var nonce [24]byte
+
+	keyRaw, err := hex.DecodeString(os.Getenv("DATABASE_BACKUP_KEY"))
 	if err != nil {
 		err = fmt.Errorf("decoding DATABASE_BACKUP_KEY: %s", err)
 		return
 	}
+	copy(key[:], keyRaw)
 
-	data, err := base64.StdEncoding.DecodeString(s.Password)
+	encrypted, err := hex.DecodeString(s.Password)
 	if err != nil {
 		err = fmt.Errorf("decoding password: %s", err)
 		return
 	}
+	copy(nonce[:], encrypted[:24])
 
-	if len(data) < 16 {
-		err = errors.New("data must be at least 16 bytes")
+	decryptedBytes, ok := secretbox.Open(nil, encrypted[24:], &nonce, &key)
+	if !ok {
+		err = fmt.Errorf("decryption error")
 		return
 	}
-	iv, msg := data[0:16], data[16:]
-
-	cipherBlock, err := aes.NewCipher(key)
-	if err != nil {
-		err = fmt.Errorf("creating new cipher block: %s", err)
-		return
-	}
-
-	cipher.NewCBCDecrypter(cipherBlock, iv).CryptBlocks(msg, msg)
-	decrypted = string(msg)
+	decrypted = string(decryptedBytes)
 
 	return
 }
