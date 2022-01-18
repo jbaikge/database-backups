@@ -30,6 +30,7 @@ func (s Server) DatabaseListCmd() ([]string, error) {
 		"mysql",
 		"information_schema",
 		"performance_schema",
+		"sys",
 		"tmp",
 	}
 	for i := range ignoreTables {
